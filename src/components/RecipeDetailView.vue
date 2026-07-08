@@ -152,7 +152,7 @@ function durationPart(value: number, label: string): string {
 }
 
 .recipe-hero-media {
-  background: #f5ead0;
+  background: var(--lb-section);
   min-height: 220px;
 }
 
@@ -164,7 +164,7 @@ function durationPart(value: number, label: string): string {
 
 .recipe-hero-placeholder {
   align-items: center;
-  color: #486034;
+  color: var(--lb-text-soft);
   display: flex;
   height: 100%;
   justify-content: center;
@@ -183,13 +183,13 @@ function durationPart(value: number, label: string): string {
 }
 
 .metadata-line {
-  color: #8b4a23;
+  color: var(--lb-warm);
   font-size: 0.9rem;
   font-weight: 750;
 }
 
 .recipe-title {
-  color: #2a432a;
+  color: var(--lb-text);
   font-size: 2rem;
   font-weight: 850;
   line-height: 1.05;
@@ -220,7 +220,7 @@ function durationPart(value: number, label: string): string {
 }
 
 .detail-panel h3 {
-  color: #2a432a;
+  color: var(--lb-text);
   font-size: 1.1rem;
   font-weight: 800;
   margin: 0 0 12px;
@@ -239,7 +239,7 @@ function durationPart(value: number, label: string): string {
 }
 
 .instruction-section h4 {
-  color: #486034;
+  color: var(--lb-text-soft);
   font-size: 1rem;
   font-weight: 800;
   margin: 0 0 10px;
@@ -257,10 +257,10 @@ function durationPart(value: number, label: string): string {
 }
 
 .timer-chip {
-  background: #f5ead0;
-  border: 1px solid #d9c59c;
+  background: var(--lb-chip);
+  border: 1px solid var(--lb-border-strong);
   border-radius: 999px;
-  color: #8b4a23;
+  color: var(--lb-warm);
   display: inline-flex;
   font-size: 0.78rem;
   font-weight: 800;

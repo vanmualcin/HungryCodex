@@ -13,11 +13,24 @@ import { createId } from './lib/ids'
 import { getCategories, getRecipes, saveCategory, saveRecipe } from './lib/storage'
 import { DEFAULT_CATEGORY_ID, type Category, type CategoryOption, type Recipe, type RecipeCardView, type RecipeFormPayload, type SortKey } from './types'
 
+type ThemeId = 'herb' | 'coastal' | 'tomato' | 'pantry' | 'harvest-night' | 'night-market' | 'fig-dark'
+
+const themeOptions: { id: ThemeId; name: string; swatches: string[] }[] = [
+  { id: 'herb', name: 'Herb Garden', swatches: ['#f6f3ea', '#fffdf8', '#53735b', '#a9613f'] },
+  { id: 'coastal', name: 'Coastal Kitchen', swatches: ['#f3f7f6', '#ffffff', '#3f6f72', '#a96b3f'] },
+  { id: 'tomato', name: 'Tomato Grove', swatches: ['#f8f5ef', '#fffdf9', '#58724e', '#b95f46'] },
+  { id: 'pantry', name: 'Clean Pantry', swatches: ['#f5f4f0', '#ffffff', '#596f63', '#9a6b54'] },
+  { id: 'harvest-night', name: 'Harvest Night', swatches: ['#111816', '#18221f', '#8bb99b', '#e1a16d'] },
+  { id: 'night-market', name: 'Night Market', swatches: ['#101416', '#171d20', '#7bb9bd', '#df8c68'] },
+  { id: 'fig-dark', name: 'Fig Dark', swatches: ['#18141b', '#231d27', '#a9b985', '#d48778'] },
+]
+
 const recipes = ref<Recipe[]>([])
 const userCategories = ref<Category[]>([])
 const selectedCategoryIds = ref<string[]>([])
 const sortKey = ref<SortKey>('name')
 const ascending = ref(true)
+const selectedTheme = ref<ThemeId>(readInitialTheme())
 const loading = ref(true)
 const mobileMenuOpen = ref(false)
 const categoryModalOpen = ref(false)
@@ -187,6 +200,46 @@ function closeCookingMode(): void {
   cookingRecipe.value = null
 }
 
+function readInitialTheme(): ThemeId {
+  const allowedThemes = new Set(themeOptions.map((theme) => theme.id))
+
+  try {
+    const urlTheme = new URLSearchParams(window.location.search).get('theme')
+    const storedTheme = window.localStorage.getItem('localbite-theme')
+
+    if (urlTheme && allowedThemes.has(urlTheme as ThemeId)) {
+      return urlTheme as ThemeId
+    }
+
+    if (storedTheme && allowedThemes.has(storedTheme as ThemeId)) {
+      return storedTheme as ThemeId
+    }
+  } catch {
+    return 'herb'
+  }
+
+  return 'herb'
+}
+
+function selectTheme(themeId: string): void {
+  const allowedThemes = new Set(themeOptions.map((theme) => theme.id))
+
+  if (!allowedThemes.has(themeId as ThemeId)) {
+    return
+  }
+
+  selectedTheme.value = themeId as ThemeId
+
+  try {
+    window.localStorage.setItem('localbite-theme', themeId)
+    const url = new URL(window.location.href)
+    url.searchParams.set('theme', themeId)
+    window.history.replaceState(null, '', url)
+  } catch {
+    // Theme selection still works for the current session.
+  }
+}
+
 function openCategoryModal(): void {
   categoryModalOpen.value = true
   mobileMenuOpen.value = false
@@ -263,7 +316,7 @@ async function handleSaveRecipe(payload: RecipeFormPayload): Promise<void> {
 </script>
 
 <template>
-  <div class="app-shell">
+  <div class="app-shell" :data-theme="selectedTheme">
     <TheTopBar @toggle-menu="mobileMenuOpen = true" />
 
     <div class="app-body">
@@ -271,7 +324,10 @@ async function handleSaveRecipe(payload: RecipeFormPayload): Promise<void> {
         :categories="navCategories"
         :mobile-open="mobileMenuOpen"
         :selected-category-ids="selectedCategoryIds"
+        :selected-theme="selectedTheme"
+        :theme-options="themeOptions"
         @close-menu="mobileMenuOpen = false"
+        @select-theme="selectTheme"
         @toggle-category="toggleCategoryFilter"
       />
 
@@ -349,6 +405,7 @@ async function handleSaveRecipe(payload: RecipeFormPayload): Promise<void> {
     />
 
     <CookingMode :recipe="cookingRecipe" :show="cookingRecipe !== null" @close="closeCookingMode" />
+
     <FloatingActionMenu
       v-if="!recipeModalOpen && !categoryModalOpen && cookingRecipe === null && !mobileMenuOpen"
       @add-category="openCategoryModal"
@@ -359,8 +416,8 @@ async function handleSaveRecipe(payload: RecipeFormPayload): Promise<void> {
 
 <style scoped>
 .app-shell {
-  background: #faf2dd;
-  color: #2a432a;
+  background: var(--lb-bg);
+  color: var(--lb-text);
   min-height: 100svh;
 }
 
@@ -393,7 +450,7 @@ async function handleSaveRecipe(payload: RecipeFormPayload): Promise<void> {
 
 .sort-icon {
   align-items: center;
-  color: #486034;
+  color: var(--lb-text-soft);
   display: inline-flex;
   height: 38px;
   justify-content: center;
@@ -437,4 +494,5 @@ async function handleSaveRecipe(payload: RecipeFormPayload): Promise<void> {
     padding: 28px 32px 40px;
   }
 }
+
 </style>

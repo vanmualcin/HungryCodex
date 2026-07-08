@@ -9,18 +9,12 @@ interface IngredientFormRow {
   text: string
 }
 
-interface TimerParts {
-  days: string
-  hours: string
-  minutes: string
-  seconds: string
-}
-
 interface StepFormRow {
   id: string
   text: string
   timerEnabled: boolean
-  timerParts: TimerParts
+  timerSeconds?: number
+  timerMinutes: string
 }
 
 interface SectionFormState {
@@ -37,13 +31,16 @@ interface RecipeFormState {
   prepTimeMinutes: string
   cookTimeMinutes: string
   ingredients: IngredientFormRow[]
-  sections: SectionFormState[]
+  hasPreparationSteps: boolean
+  preparationSection: SectionFormState
+  cookingSection: SectionFormState
   notes: string
   storageNotes: string
   images: RecipeImage[]
 }
 
-const DEFAULT_SECTION_TITLES = ['Preparation', 'Cooking']
+const PREPARATION_TITLE = 'Preparation'
+const COOKING_TITLE = 'Cooking'
 
 const props = defineProps<{
   categories: CategoryOption[]
@@ -58,6 +55,8 @@ const emit = defineEmits<{
 
 const form = reactive<RecipeFormState>(blankForm())
 const categoryDropdownOpen = ref(false)
+const detailsOpen = ref(false)
+const fileInput = ref<HTMLInputElement | null>(null)
 const imageError = ref('')
 const imageProcessing = ref(false)
 
@@ -69,7 +68,29 @@ const selectedCategoryNames = computed(() =>
     .map((category) => category.name)
     .join(', '),
 )
-const canSave = computed(() => form.name.trim().length > 0 && !imageProcessing.value)
+const primaryImage = computed(() => form.images[0] ?? null)
+const hasRecipeName = computed(() => form.name.trim().length > 0)
+const hasIngredient = computed(() => form.ingredients.some((ingredient) => ingredient.text.trim().length > 0))
+const hasCookingStep = computed(() => form.cookingSection.steps.some((step) => step.text.trim().length > 0))
+const missingRequirements = computed(() => {
+  const missing: string[] = []
+
+  if (!hasRecipeName.value) {
+    missing.push('recipe name')
+  }
+
+  if (!hasIngredient.value) {
+    missing.push('one ingredient')
+  }
+
+  if (!hasCookingStep.value) {
+    missing.push('one cooking step')
+  }
+
+  return missing
+})
+const saveHint = computed(() => (missingRequirements.value.length > 0 ? `Add ${formatList(missingRequirements.value)} to save.` : ''))
+const canSave = computed(() => missingRequirements.value.length === 0 && !imageProcessing.value)
 
 watch(
   () => [props.show, props.recipe?.id],
@@ -90,19 +111,21 @@ function blankForm(): RecipeFormState {
     prepTimeMinutes: '',
     cookTimeMinutes: '',
     ingredients: [createIngredientRow()],
-    sections: createDefaultSections(),
+    hasPreparationSteps: false,
+    preparationSection: createBlankSection(PREPARATION_TITLE),
+    cookingSection: createBlankSection(COOKING_TITLE),
     notes: '',
     storageNotes: '',
     images: [],
   }
 }
 
-function createDefaultSections(): SectionFormState[] {
-  return DEFAULT_SECTION_TITLES.map((title) => ({
+function createBlankSection(title: string): SectionFormState {
+  return {
     id: createId('section'),
     title,
     steps: [createStepRow()],
-  }))
+  }
 }
 
 function createIngredientRow(ingredient?: Ingredient): IngredientFormRow {
@@ -117,7 +140,8 @@ function createStepRow(step?: { id: string; text: string; timerSeconds?: number 
     id: step?.id ?? createId('step'),
     text: step?.text ?? '',
     timerEnabled: Boolean(step?.timerSeconds),
-    timerParts: step?.timerSeconds ? splitTimerParts(step.timerSeconds) : createTimerParts(),
+    timerSeconds: step?.timerSeconds,
+    timerMinutes: step?.timerSeconds ? secondsToTimerMinutes(step.timerSeconds) : '',
   }
 }
 
@@ -126,13 +150,15 @@ function resetForm(): void {
 
   Object.assign(form, nextForm)
   categoryDropdownOpen.value = false
+  detailsOpen.value = props.recipe ? recipeHasDetails(props.recipe) : false
   imageError.value = ''
   imageProcessing.value = false
 }
 
 function recipeToForm(recipe: Recipe): RecipeFormState {
   const ingredients = recipe.ingredients.length > 0 ? recipe.ingredients.map(createIngredientRow) : [createIngredientRow()]
-  const sections = createEditorSections(recipe.sections)
+  const preparationSection = createEditorSection(recipe.sections, PREPARATION_TITLE)
+  const cookingSection = createEditorSection(recipe.sections, COOKING_TITLE)
 
   return {
     categoryIds: recipe.categoryIds.length > 0 ? [...recipe.categoryIds] : [DEFAULT_CATEGORY_ID],
@@ -142,18 +168,19 @@ function recipeToForm(recipe: Recipe): RecipeFormState {
     prepTimeMinutes: recipe.prepTimeMinutes?.toString() ?? '',
     cookTimeMinutes: recipe.cookTimeMinutes?.toString() ?? '',
     ingredients,
-    sections,
+    hasPreparationSteps: preparationSection.steps.some(stepHasContent),
+    preparationSection,
+    cookingSection,
     notes: recipe.notes,
     storageNotes: recipe.storageNotes,
     images: recipe.images.map((image) => ({ ...image })),
   }
 }
 
-function createEditorSections(sections: RecipeSection[]): SectionFormState[] {
-  return DEFAULT_SECTION_TITLES.map((title) => {
-    const existingSection = sections.find((section) => section.title.trim().toLocaleLowerCase() === title.toLocaleLowerCase())
-    return existingSection ? sectionToForm(existingSection, title) : { id: createId('section'), title, steps: [createStepRow()] }
-  })
+function createEditorSection(sections: RecipeSection[], title: string): SectionFormState {
+  const existingSection = sections.find((section) => section.title.trim().toLocaleLowerCase() === title.toLocaleLowerCase())
+
+  return existingSection ? sectionToForm(existingSection, title) : createBlankSection(title)
 }
 
 function sectionToForm(section: RecipeSection, title: string): SectionFormState {
@@ -164,12 +191,33 @@ function sectionToForm(section: RecipeSection, title: string): SectionFormState 
   }
 }
 
+function recipeHasDetails(recipe: Recipe): boolean {
+  const hasCustomCategory = recipe.categoryIds.some((categoryId) => categoryId !== DEFAULT_CATEGORY_ID)
+  return Boolean(
+    recipe.description ||
+      recipe.servings ||
+      recipe.prepTimeMinutes ||
+      recipe.cookTimeMinutes ||
+      recipe.notes ||
+      recipe.storageNotes ||
+      hasCustomCategory,
+  )
+}
+
+function stepHasContent(step: StepFormRow): boolean {
+  return step.text.trim().length > 0 || (step.timerEnabled && step.timerMinutes.trim().length > 0)
+}
+
 function toggleCategory(categoryId: string): void {
   if (form.categoryIds.includes(categoryId)) {
     form.categoryIds = form.categoryIds.filter((selectedCategoryId) => selectedCategoryId !== categoryId)
   } else {
     form.categoryIds = [...form.categoryIds, categoryId]
   }
+}
+
+function openImagePicker(): void {
+  fileInput.value?.click()
 }
 
 async function handleImageUpload(event: Event): Promise<void> {
@@ -184,11 +232,13 @@ async function handleImageUpload(event: Event): Promise<void> {
 
   try {
     const resizedImages = await resizeImages(Array.from(input.files))
-    form.images = [...form.images, ...resizedImages]
 
     if (resizedImages.length === 0) {
-      imageError.value = 'Choose one or more image files.'
+      imageError.value = 'Choose an image file.'
+      return
     }
+
+    form.images = resizedImages.slice(0, 1)
   } catch (error) {
     imageError.value = error instanceof Error ? error.message : 'Unable to process image.'
   } finally {
@@ -197,8 +247,8 @@ async function handleImageUpload(event: Event): Promise<void> {
   }
 }
 
-function removeImage(imageId: string): void {
-  form.images = form.images.filter((image) => image.id !== imageId)
+function removeImage(): void {
+  form.images = []
 }
 
 function addIngredient(): void {
@@ -214,37 +264,45 @@ function removeIngredient(ingredientId: string): void {
   form.ingredients = form.ingredients.filter((ingredient) => ingredient.id !== ingredientId)
 }
 
-function addStep(sectionId: string): void {
-  const section = form.sections.find((currentSection) => currentSection.id === sectionId)
+function togglePreparationSteps(event: Event): void {
+  const input = event.target as HTMLInputElement
+  form.hasPreparationSteps = input.checked
 
-  if (!section) {
-    return
+  if (form.hasPreparationSteps && form.preparationSection.steps.length === 0) {
+    form.preparationSection.steps = [createStepRow()]
   }
+}
 
+function addStep(section: SectionFormState): void {
   section.steps = [...section.steps, createStepRow()]
 }
 
-function removeStep(sectionId: string, stepId: string): void {
-  const section = form.sections.find((currentSection) => currentSection.id === sectionId)
-
-  if (!section) {
-    return
-  }
-
+function removeStep(section: SectionFormState, stepId: string): void {
   if (section.steps.length === 1) {
     section.steps[0].text = ''
     section.steps[0].timerEnabled = false
-    section.steps[0].timerParts = createTimerParts()
+    section.steps[0].timerSeconds = undefined
+    section.steps[0].timerMinutes = ''
     return
   }
 
   section.steps = section.steps.filter((step) => step.id !== stepId)
 }
 
+function normalizeTimerMinutes(step: StepFormRow): void {
+  const minutes = parsePositiveInteger(step.timerMinutes)
+  step.timerMinutes = minutes?.toString() ?? ''
+}
+
 function submitRecipe(): void {
   if (!canSave.value) {
     return
   }
+
+  const sections = [
+    form.hasPreparationSteps ? sectionToPayload(form.preparationSection) : null,
+    sectionToPayload(form.cookingSection),
+  ].filter((section): section is RecipeSection => section !== null)
 
   emit('save-recipe', {
     id: props.recipe?.id,
@@ -261,25 +319,33 @@ function submitRecipe(): void {
         text: ingredient.text.trim(),
       }))
       .filter((ingredient) => ingredient.text.length > 0),
-    sections: form.sections
-      .map((section) => ({
-        id: section.id,
-        title: section.title.trim(),
-        steps: section.steps
-          .map((step) => {
-            const timerSeconds = parseTimerSeconds(step)
-            return {
-              id: step.id,
-              text: step.text.trim(),
-              ...(timerSeconds ? { timerSeconds } : {}),
-            }
-          })
-          .filter((step) => step.text.length > 0),
-      }))
-      .filter((section) => section.title.length > 0 && section.steps.length > 0),
+    sections,
     notes: form.notes.trim(),
     storageNotes: form.storageNotes.trim(),
   })
+}
+
+function sectionToPayload(section: SectionFormState): RecipeSection | null {
+  const steps = section.steps
+    .map((step) => {
+      const timerSeconds = parseTimerSeconds(step)
+      return {
+        id: step.id,
+        text: step.text.trim(),
+        ...(timerSeconds ? { timerSeconds } : {}),
+      }
+    })
+    .filter((step) => step.text.length > 0)
+
+  if (section.title.trim().length === 0 || steps.length === 0) {
+    return null
+  }
+
+  return {
+    id: section.id,
+    title: section.title.trim(),
+    steps,
+  }
 }
 
 function parsePositiveInteger(value: string): number | undefined {
@@ -297,185 +363,105 @@ function parseTimerSeconds(step: StepFormRow): number | undefined {
     return undefined
   }
 
-  const days = parseTimerPart(step.timerParts.days)
-  const hours = parseTimerPart(step.timerParts.hours)
-  const minutes = parseTimerPart(step.timerParts.minutes)
-  const seconds = parseTimerPart(step.timerParts.seconds)
+  const minutes = parsePositiveInteger(step.timerMinutes)
 
-  if (hours > 23 || minutes > 59 || seconds > 59) {
-    return undefined
+  if (step.timerSeconds && step.timerMinutes === secondsToTimerMinutes(step.timerSeconds)) {
+    return step.timerSeconds
   }
 
-  const totalSeconds = days * 86400 + hours * 3600 + minutes * 60 + seconds
-
-  return totalSeconds > 0 ? totalSeconds : undefined
+  return minutes ? minutes * 60 : undefined
 }
 
-function parseTimerPart(value: string): number {
-  const parsed = Number(value)
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : 0
+function secondsToTimerMinutes(seconds: number): string {
+  return Math.max(1, Math.round(seconds / 60)).toString()
 }
 
-function createTimerParts(): TimerParts {
-  return {
-    days: '00',
-    hours: '00',
-    minutes: '00',
-    seconds: '00',
-  }
-}
-
-function splitTimerParts(seconds: number): TimerParts {
-  const safeSeconds = Math.max(0, Math.round(seconds))
-  const days = Math.floor(safeSeconds / 86400)
-  const hours = Math.floor((safeSeconds % 86400) / 3600)
-  const minutes = Math.floor((safeSeconds % 3600) / 60)
-  const remainingSeconds = safeSeconds % 60
-
-  return {
-    days: formatTimerPart(days),
-    hours: formatTimerPart(hours),
-    minutes: formatTimerPart(minutes),
-    seconds: formatTimerPart(remainingSeconds),
-  }
-}
-
-function formatTimerPart(value: number): string {
-  return value.toString().padStart(2, '0')
-}
-
-function updateTimerPart(step: StepFormRow, partName: keyof TimerParts, event: Event): void {
-  const input = event.target as HTMLInputElement
-  const maxValue = timerPartMax(partName)
-  step.timerParts[partName] = clampTimerPart(input.value, maxValue)
-}
-
-function formatTimerInput(step: StepFormRow, partName: keyof TimerParts): void {
-  const maxValue = timerPartMax(partName)
-  const value = Number(clampTimerPart(step.timerParts[partName], maxValue))
-  step.timerParts[partName] = formatTimerPart(value)
-}
-
-function timerPartMax(partName: keyof TimerParts): number {
-  return partName === 'days' ? 99 : partName === 'hours' ? 23 : 59
-}
-
-function clampTimerPart(value: string, maxValue: number): string {
-  const numericValue = value.replace(/\D/g, '')
-
-  if (numericValue.length === 0) {
-    return '00'
+function formatList(items: string[]): string {
+  if (items.length <= 1) {
+    return items[0] ?? ''
   }
 
-  const parsed = Math.min(Number(numericValue), maxValue)
-  return parsed.toString()
+  if (items.length === 2) {
+    return `${items[0]} and ${items[1]}`
+  }
+
+  return `${items.slice(0, -1).join(', ')}, and ${items[items.length - 1]}`
 }
 </script>
 
 <template>
   <div v-if="show" class="modal-backdrop fade show"></div>
-  <div v-if="show" class="modal localbite-modal show" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="recipe-modal-title">
-    <div class="modal-dialog modal-xl modal-dialog-scrollable">
-      <form class="modal-content recipe-editor" @submit.prevent="submitRecipe">
-        <div class="modal-header">
-          <div>
-            <h2 id="recipe-modal-title" class="modal-title h4 mb-1">{{ modalTitle }}</h2>
-            <p class="text-secondary mb-0">Build the recipe once, then cook from clean steps.</p>
+  <div v-if="show" class="modal localbite-modal recipe-modal show" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="recipe-modal-title">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable recipe-modal-dialog">
+      <form class="modal-content recipe-editor" novalidate @submit.prevent="submitRecipe">
+        <div class="modal-header recipe-editor-header">
+          <div class="header-copy">
+            <h2 id="recipe-modal-title" class="modal-title">{{ modalTitle }}</h2>
+            <p>Build the recipe once, then cook from clean steps.</p>
           </div>
-          <button class="btn-close" type="button" aria-label="Close" @click="emit('close')"></button>
+          <button class="btn btn-light icon-only close-editor-button" type="button" aria-label="Close" @click="emit('close')">
+            <span class="material-icons" aria-hidden="true">close</span>
+          </button>
         </div>
 
-        <div class="modal-body">
-          <section class="editor-section">
-            <h3 class="section-heading">Basic Info</h3>
+        <div class="modal-body recipe-editor-body">
+          <section class="editor-section recipe-section">
+            <h3 class="section-heading">Recipe</h3>
 
-            <div class="mb-3">
-              <label class="form-label" for="recipe-name">Recipe name</label>
-              <input id="recipe-name" v-model="form.name" class="form-control recipe-name-input" type="text" required />
+            <div class="field-stack">
+              <label class="form-label" for="recipe-name">Recipe name <span class="required-mark" aria-hidden="true">*</span></label>
+              <input
+                id="recipe-name"
+                v-model="form.name"
+                class="form-control recipe-name-input"
+                type="text"
+                autocomplete="off"
+                required
+                :aria-invalid="!hasRecipeName"
+              />
             </div>
 
-            <div class="mb-3">
-              <label class="form-label" for="recipe-categories">Category</label>
-              <div id="recipe-categories" class="category-dropdown">
-                <button
-                  class="form-select category-dropdown-button text-start"
-                  type="button"
-                  aria-haspopup="listbox"
-                  :aria-expanded="categoryDropdownOpen"
-                  @click="categoryDropdownOpen = !categoryDropdownOpen"
-                >
-                  {{ selectedCategoryNames || 'Default' }}
+            <div class="photo-picker">
+              <div class="section-title-row compact-title-row">
+                <label class="form-label mb-0" for="recipe-images">Recipe photo</label>
+                <span class="optional-label">Optional</span>
+              </div>
+              <input
+                id="recipe-images"
+                ref="fileInput"
+                class="visually-hidden-file"
+                type="file"
+                accept="image/*"
+                @change="handleImageUpload"
+              />
+
+              <div v-if="!primaryImage" class="photo-empty-state">
+                <button class="btn btn-outline-success d-inline-flex align-items-center gap-2" type="button" @click="openImagePicker">
+                  <span class="material-icons" aria-hidden="true">add_photo_alternate</span>
+                  <span>Add photo</span>
                 </button>
+                <p>Tap to choose or take a photo</p>
+              </div>
 
-                <div v-if="categoryDropdownOpen" class="category-dropdown-menu border bg-white shadow-sm" role="listbox" aria-multiselectable="true">
-                  <label v-for="category in categories" :key="category.id" class="category-dropdown-item">
-                    <input
-                      class="form-check-input"
-                      type="checkbox"
-                      :checked="form.categoryIds.includes(category.id)"
-                      @change="toggleCategory(category.id)"
-                    />
-                    <span>{{ category.name }}</span>
-                  </label>
+              <div v-else class="photo-selected-state">
+                <img :src="primaryImage.dataUrl" :alt="primaryImage.name" />
+                <div class="photo-selected-copy">
+                  <span>{{ primaryImage.name }}</span>
+                  <div class="photo-actions">
+                    <button class="btn btn-outline-secondary btn-sm" type="button" @click="openImagePicker">Change photo</button>
+                    <button class="btn btn-link btn-sm remove-text-button" type="button" @click="removeImage">Remove</button>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div class="mb-3">
-              <label class="form-label" for="recipe-description">Description</label>
-              <textarea id="recipe-description" v-model="form.description" class="form-control" rows="3"></textarea>
-            </div>
-
-            <div>
-              <label class="form-label" for="recipe-images">Image upload</label>
-              <input id="recipe-images" class="form-control" type="file" accept="image/*" multiple @change="handleImageUpload" />
-              <p v-if="imageProcessing" class="small text-secondary mb-0 mt-2">Resizing images before saving.</p>
-              <p v-if="imageError.length > 0" class="small text-danger mb-0 mt-2">{{ imageError }}</p>
-
-              <div v-if="form.images.length > 0" class="image-grid mt-3">
-                <figure v-for="image in form.images" :key="image.id" class="image-preview border mb-0">
-                  <img :src="image.dataUrl" :alt="image.name" />
-                  <figcaption>
-                    <span>{{ image.name }}</span>
-                    <button class="btn btn-sm btn-light icon-only" type="button" aria-label="Remove image" @click="removeImage(image.id)">
-                      <span class="material-icons" aria-hidden="true">close</span>
-                    </button>
-                  </figcaption>
-                </figure>
-              </div>
-            </div>
-          </section>
-
-          <section class="editor-section">
-            <h3 class="section-heading">Details</h3>
-            <div class="details-grid">
-              <div>
-                <label class="form-label" for="recipe-servings">Servings</label>
-                <input id="recipe-servings" v-model="form.servings" class="form-control" type="number" min="1" inputmode="numeric" />
-              </div>
-              <div>
-                <label class="form-label" for="recipe-prep-time">Prep time</label>
-                <div class="input-group">
-                  <input id="recipe-prep-time" v-model="form.prepTimeMinutes" class="form-control" type="number" min="1" inputmode="numeric" />
-                  <span class="input-group-text">min</span>
-                </div>
-              </div>
-              <div>
-                <label class="form-label" for="recipe-cook-time">Cook time</label>
-                <div class="input-group">
-                  <input id="recipe-cook-time" v-model="form.cookTimeMinutes" class="form-control" type="number" min="1" inputmode="numeric" />
-                  <span class="input-group-text">min</span>
-                </div>
-              </div>
+              <p v-if="imageProcessing" class="small text-secondary mb-0">Resizing image before saving.</p>
+              <p v-if="imageError.length > 0" class="small text-danger mb-0">{{ imageError }}</p>
             </div>
           </section>
 
           <section class="editor-section">
             <div class="section-title-row">
-              <h3 class="section-heading mb-0">Ingredients</h3>
-              <button class="btn btn-outline-success icon-only" type="button" aria-label="Add ingredient" title="Add ingredient" @click="addIngredient">
-                <span class="material-icons" aria-hidden="true">add</span>
-              </button>
+              <h3 class="section-heading mb-0">Ingredients <span class="required-mark" aria-hidden="true">*</span></h3>
             </div>
 
             <div class="editable-list">
@@ -485,6 +471,7 @@ function clampTimerPart(value: string, maxValue: number): string {
                   class="form-control"
                   type="text"
                   :aria-label="`Ingredient ${ingredientIndex + 1}`"
+                  :aria-required="ingredientIndex === 0"
                   placeholder="2 cups flour"
                 />
                 <button class="btn btn-outline-secondary icon-only row-remove-button" type="button" aria-label="Remove ingredient" title="Remove ingredient" @click="removeIngredient(ingredient.id)">
@@ -492,125 +479,210 @@ function clampTimerPart(value: string, maxValue: number): string {
                 </button>
               </div>
             </div>
+
+            <button class="btn btn-outline-success add-row-button" type="button" @click="addIngredient">
+              <span class="material-icons" aria-hidden="true">add</span>
+              <span>Add ingredient</span>
+            </button>
           </section>
 
-          <section class="editor-section">
-            <h3 class="section-heading">Instructions</h3>
+          <section class="editor-section steps-section">
+            <h3 class="section-heading">Steps <span class="required-mark" aria-hidden="true">*</span></h3>
 
-            <div class="instruction-stack">
-              <section v-for="section in form.sections" :key="section.id" class="instruction-section border">
-                <div class="instruction-section-header">
-                  <h4 class="instruction-section-title">{{ section.title }}</h4>
-                  <button class="btn btn-outline-success d-inline-flex align-items-center gap-1" type="button" @click="addStep(section.id)">
-                    <span class="material-icons" aria-hidden="true">add</span>
-                    <span>Add step</span>
-                  </button>
-                </div>
+            <label class="form-check prep-toggle">
+              <input class="form-check-input" type="checkbox" :checked="form.hasPreparationSteps" @change="togglePreparationSteps" />
+              <span class="form-check-label">This recipe has preparation steps</span>
+            </label>
 
-                <div class="step-list">
-                  <div v-for="(step, stepIndex) in section.steps" :key="step.id" class="step-row">
+            <section v-if="form.hasPreparationSteps" class="step-phase">
+              <div class="phase-header">
+                <h4>Preparation steps</h4>
+              </div>
+
+              <div class="step-list">
+                <div v-for="(step, stepIndex) in form.preparationSection.steps" :key="step.id" class="step-row">
+                  <div class="step-line">
                     <span class="step-number">{{ stepIndex + 1 }}</span>
                     <input
                       v-model="step.text"
                       class="form-control"
                       type="text"
-                      :aria-label="`${section.title || 'Instruction'} step ${stepIndex + 1}`"
-                      placeholder="Describe this step"
+                      :aria-label="`Preparation step ${stepIndex + 1}`"
+                      placeholder="Describe this prep step"
                     />
-                    <div class="timer-field">
-                      <label class="form-check timer-toggle">
-                        <input v-model="step.timerEnabled" class="form-check-input" type="checkbox" />
-                        <span class="form-check-label">Timer</span>
-                      </label>
-
-                      <div v-if="step.timerEnabled" class="timer-parts" role="group" :aria-label="`${section.title} step ${stepIndex + 1} timer`">
-                        <label class="visually-hidden" :for="`timer-${section.id}-${step.id}-days`">Days</label>
-                        <input
-                          :id="`timer-${section.id}-${step.id}-days`"
-                          class="form-control timer-part-input"
-                          type="number"
-                          min="0"
-                          max="99"
-                          inputmode="numeric"
-                          :value="step.timerParts.days"
-                          aria-label="Days"
-                          @input="updateTimerPart(step, 'days', $event)"
-                          @blur="formatTimerInput(step, 'days')"
-                        />
-                        <span class="timer-separator">:</span>
-
-                        <label class="visually-hidden" :for="`timer-${section.id}-${step.id}-hours`">Hours</label>
-                        <input
-                          :id="`timer-${section.id}-${step.id}-hours`"
-                          class="form-control timer-part-input"
-                          type="number"
-                          min="0"
-                          max="23"
-                          inputmode="numeric"
-                          :value="step.timerParts.hours"
-                          aria-label="Hours"
-                          @input="updateTimerPart(step, 'hours', $event)"
-                          @blur="formatTimerInput(step, 'hours')"
-                        />
-                        <span class="timer-separator">:</span>
-
-                        <label class="visually-hidden" :for="`timer-${section.id}-${step.id}-minutes`">Minutes</label>
-                        <input
-                          :id="`timer-${section.id}-${step.id}-minutes`"
-                          class="form-control timer-part-input"
-                          type="number"
-                          min="0"
-                          max="59"
-                          inputmode="numeric"
-                          :value="step.timerParts.minutes"
-                          aria-label="Minutes"
-                          @input="updateTimerPart(step, 'minutes', $event)"
-                          @blur="formatTimerInput(step, 'minutes')"
-                        />
-                        <span class="timer-separator">:</span>
-
-                        <label class="visually-hidden" :for="`timer-${section.id}-${step.id}-seconds`">Seconds</label>
-                        <input
-                          :id="`timer-${section.id}-${step.id}-seconds`"
-                          class="form-control timer-part-input"
-                          type="number"
-                          min="0"
-                          max="59"
-                          inputmode="numeric"
-                          :value="step.timerParts.seconds"
-                          aria-label="Seconds"
-                          @input="updateTimerPart(step, 'seconds', $event)"
-                          @blur="formatTimerInput(step, 'seconds')"
-                        />
-                      </div>
-                    </div>
-                    <button class="btn btn-outline-secondary icon-only step-remove-button" type="button" aria-label="Remove step" @click="removeStep(section.id, step.id)">
+                    <button class="btn btn-outline-secondary icon-only step-remove-button" type="button" aria-label="Remove preparation step" title="Remove step" @click="removeStep(form.preparationSection, step.id)">
                       <span class="material-icons" aria-hidden="true">remove</span>
                     </button>
                   </div>
+
+                  <div class="step-options">
+                    <label class="form-check timer-toggle">
+                      <input v-model="step.timerEnabled" class="form-check-input" type="checkbox" />
+                      <span class="form-check-label">Add timer</span>
+                    </label>
+
+                    <div v-if="step.timerEnabled" class="timer-minutes">
+                      <span>Timer</span>
+                      <input
+                        v-model="step.timerMinutes"
+                        class="form-control timer-minute-input"
+                        type="number"
+                        min="1"
+                        inputmode="numeric"
+                        aria-label="Timer minutes"
+                        placeholder="10"
+                        @blur="normalizeTimerMinutes(step)"
+                      />
+                      <span>minutes</span>
+                    </div>
+                  </div>
                 </div>
-              </section>
-            </div>
+              </div>
+
+              <button class="btn btn-outline-success add-row-button" type="button" @click="addStep(form.preparationSection)">
+                <span class="material-icons" aria-hidden="true">add</span>
+                <span>Add preparation step</span>
+              </button>
+            </section>
+
+            <section class="step-phase">
+              <div class="phase-header">
+                <h4>Cooking steps</h4>
+              </div>
+
+              <div class="step-list">
+                <div v-for="(step, stepIndex) in form.cookingSection.steps" :key="step.id" class="step-row">
+                  <div class="step-line">
+                    <span class="step-number">{{ stepIndex + 1 }}</span>
+                    <input
+                      v-model="step.text"
+                      class="form-control"
+                      type="text"
+                      :aria-label="`Cooking step ${stepIndex + 1}`"
+                      :aria-required="stepIndex === 0"
+                      placeholder="Describe this cooking step"
+                    />
+                    <button class="btn btn-outline-secondary icon-only step-remove-button" type="button" aria-label="Remove cooking step" title="Remove step" @click="removeStep(form.cookingSection, step.id)">
+                      <span class="material-icons" aria-hidden="true">remove</span>
+                    </button>
+                  </div>
+
+                  <div class="step-options">
+                    <label class="form-check timer-toggle">
+                      <input v-model="step.timerEnabled" class="form-check-input" type="checkbox" />
+                      <span class="form-check-label">Add timer</span>
+                    </label>
+
+                    <div v-if="step.timerEnabled" class="timer-minutes">
+                      <span>Timer</span>
+                      <input
+                        v-model="step.timerMinutes"
+                        class="form-control timer-minute-input"
+                        type="number"
+                        min="1"
+                        inputmode="numeric"
+                        aria-label="Timer minutes"
+                        placeholder="10"
+                        @blur="normalizeTimerMinutes(step)"
+                      />
+                      <span>minutes</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <button class="btn btn-outline-success add-row-button" type="button" @click="addStep(form.cookingSection)">
+                <span class="material-icons" aria-hidden="true">add</span>
+                <span>Add cooking step</span>
+              </button>
+            </section>
           </section>
 
-          <section class="editor-section">
-            <h3 class="section-heading">Notes</h3>
-            <div class="mb-3">
-              <label class="form-label" for="recipe-notes">General notes</label>
-              <textarea id="recipe-notes" v-model="form.notes" class="form-control" rows="3"></textarea>
-            </div>
-            <div>
-              <label class="form-label" for="recipe-storage-notes">Storage notes</label>
-              <textarea id="recipe-storage-notes" v-model="form.storageNotes" class="form-control" rows="3"></textarea>
+          <section class="editor-section details-section">
+            <button class="section-disclosure" type="button" :aria-expanded="detailsOpen" @click="detailsOpen = !detailsOpen">
+              <span class="section-heading">Details</span>
+              <span class="disclosure-meta">
+                <span class="optional-label">Optional</span>
+                <span class="material-icons" aria-hidden="true">{{ detailsOpen ? 'expand_less' : 'expand_more' }}</span>
+              </span>
+            </button>
+
+            <div v-if="detailsOpen" class="details-content">
+              <div class="details-grid">
+                <div>
+                  <label class="form-label" for="recipe-servings">Servings</label>
+                  <input id="recipe-servings" v-model="form.servings" class="form-control" type="number" min="1" inputmode="numeric" />
+                </div>
+                <div>
+                  <label class="form-label" for="recipe-prep-time">Prep time</label>
+                  <div class="unit-input">
+                    <input id="recipe-prep-time" v-model="form.prepTimeMinutes" class="form-control" type="number" min="1" inputmode="numeric" />
+                    <span>minutes</span>
+                  </div>
+                </div>
+                <div>
+                  <label class="form-label" for="recipe-cook-time">Cook time</label>
+                  <div class="unit-input">
+                    <input id="recipe-cook-time" v-model="form.cookTimeMinutes" class="form-control" type="number" min="1" inputmode="numeric" />
+                    <span>minutes</span>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label class="form-label" for="recipe-categories">Category</label>
+                <div id="recipe-categories" class="category-dropdown">
+                  <button
+                    class="form-select category-dropdown-button text-start"
+                    type="button"
+                    aria-haspopup="listbox"
+                    :aria-expanded="categoryDropdownOpen"
+                    @click="categoryDropdownOpen = !categoryDropdownOpen"
+                  >
+                    {{ selectedCategoryNames || 'Default' }}
+                  </button>
+
+                  <div v-if="categoryDropdownOpen" class="category-dropdown-menu bg-white shadow-sm" role="listbox" aria-multiselectable="true">
+                    <label v-for="category in categories" :key="category.id" class="category-dropdown-item">
+                      <input
+                        class="form-check-input"
+                        type="checkbox"
+                        :checked="form.categoryIds.includes(category.id)"
+                        @change="toggleCategory(category.id)"
+                      />
+                      <span>{{ category.name }}</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label class="form-label" for="recipe-description">Description</label>
+                <textarea id="recipe-description" v-model="form.description" class="form-control" rows="3"></textarea>
+              </div>
+
+              <div class="notes-grid">
+                <div>
+                  <label class="form-label" for="recipe-notes">General notes</label>
+                  <textarea id="recipe-notes" v-model="form.notes" class="form-control" rows="3"></textarea>
+                </div>
+                <div>
+                  <label class="form-label" for="recipe-storage-notes">Storage notes</label>
+                  <textarea id="recipe-storage-notes" v-model="form.storageNotes" class="form-control" rows="3"></textarea>
+                </div>
+              </div>
             </div>
           </section>
         </div>
 
-        <div class="modal-footer">
-          <button class="btn btn-outline-secondary" type="button" @click="emit('close')">Cancel</button>
-          <button class="btn btn-success" type="submit" :disabled="!canSave">
-            {{ saveLabel }}
-          </button>
+        <div class="modal-footer recipe-editor-footer">
+          <p v-if="saveHint" class="save-hint">{{ saveHint }}</p>
+          <div class="footer-actions">
+            <button class="btn btn-outline-secondary" type="button" @click="emit('close')">Cancel</button>
+            <button class="btn btn-success save-button" type="submit" :disabled="!canSave">
+              {{ saveLabel }}
+            </button>
+          </div>
         </div>
       </form>
     </div>
@@ -622,22 +694,64 @@ function clampTimerPart(value: string, maxValue: number): string {
   display: block;
 }
 
+.recipe-modal-dialog {
+  margin-bottom: 1rem;
+  margin-top: 1rem;
+}
+
 .modal-content {
+  border: 1px solid var(--lb-border);
   border-radius: 8px;
+  overflow: hidden;
 }
 
 .recipe-editor {
-  background: #fffdf7;
+  background: var(--lb-surface);
 }
 
-.modal-body {
+.recipe-editor-header {
+  align-items: flex-start;
+  background: var(--lb-surface);
+  border-bottom: 1px solid var(--lb-border);
+  gap: 14px;
+  padding: 16px 18px;
+}
+
+.header-copy {
   display: grid;
-  gap: 18px;
+  gap: 2px;
+}
+
+.header-copy h2 {
+  color: var(--lb-text);
+  font-size: 1.25rem;
+  font-weight: 850;
+  line-height: 1.15;
+  margin: 0;
+}
+
+.header-copy p {
+  color: var(--lb-muted);
+  font-size: 0.92rem;
+  line-height: 1.35;
+  margin: 0;
+}
+
+.close-editor-button {
+  height: 38px;
+  margin-left: auto;
+  width: 38px;
+}
+
+.recipe-editor-body {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+  padding-bottom: 112px;
 }
 
 .editor-section {
-  background: rgba(255, 249, 236, 0.72);
-  border: 1px solid rgba(225, 210, 180, 0.9);
+  background: var(--lb-section-soft);
   border-radius: 8px;
   display: grid;
   gap: 14px;
@@ -645,17 +759,281 @@ function clampTimerPart(value: string, maxValue: number): string {
 }
 
 .section-heading {
-  color: #2a432a;
+  color: var(--lb-text);
   font-size: 1.05rem;
+  font-weight: 850;
+  line-height: 1.2;
+  margin: 0;
+}
+
+.required-mark {
+  color: var(--lb-danger);
+  font-weight: 850;
+}
+
+.optional-label {
+  color: var(--lb-muted);
+  font-size: 0.76rem;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+
+.field-stack,
+.photo-picker,
+.details-content,
+.step-phase {
+  display: grid;
+  gap: 10px;
+}
+
+.recipe-name-input {
+  color: var(--lb-text);
+  font-size: 1.2rem;
+  font-weight: 750;
+  min-height: 48px;
+}
+
+.section-title-row {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.compact-title-row {
+  justify-content: flex-start;
+}
+
+.visually-hidden-file {
+  block-size: 1px;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  inline-size: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+}
+
+.photo-empty-state {
+  align-items: center;
+  background: var(--lb-surface);
+  border: 1px dashed var(--lb-border-strong);
+  border-radius: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  min-height: 82px;
+  padding: 14px;
+}
+
+.photo-empty-state p {
+  color: var(--lb-muted);
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+.photo-selected-state {
+  align-items: center;
+  background: var(--lb-surface);
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 88px minmax(0, 1fr);
+  padding: 10px;
+}
+
+.photo-selected-state img {
+  aspect-ratio: 1;
+  border-radius: 8px;
+  display: block;
+  object-fit: cover;
+  width: 88px;
+}
+
+.photo-selected-copy {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.photo-selected-copy > span {
+  color: var(--lb-text-soft);
+  font-size: 0.9rem;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.photo-actions,
+.footer-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.remove-text-button {
+  box-shadow: none !important;
+  color: var(--lb-warm) !important;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
+.editable-list,
+.step-list,
+.details-grid,
+.notes-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.ingredient-row {
+  align-items: center;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.add-row-button {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+  justify-self: start;
+  min-height: 36px;
+  padding: 0.35rem 0.7rem;
+}
+
+.prep-toggle,
+.timer-toggle {
+  align-items: center;
+  display: inline-flex;
+  gap: 8px;
+  margin: 0;
+}
+
+.prep-toggle {
+  color: var(--lb-text-soft);
+  font-size: 0.92rem;
+  font-weight: 750;
+}
+
+.step-phase {
+  border-top: 1px solid var(--lb-border);
+  padding-top: 14px;
+}
+
+.phase-header h4 {
+  color: var(--lb-text-soft);
+  font-size: 0.93rem;
   font-weight: 800;
   margin: 0;
 }
 
-.recipe-name-input {
-  color: #2a432a;
-  font-size: 1.25rem;
+.step-row {
+  display: grid;
+  gap: 8px;
+}
+
+.step-line {
+  align-items: center;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.step-number {
+  align-items: center;
+  background: var(--lb-chip);
+  border-radius: 999px;
+  color: var(--lb-text-soft);
+  display: inline-flex;
+  font-size: 0.82rem;
+  font-weight: 850;
+  height: 30px;
+  justify-content: center;
+  width: 30px;
+}
+
+.step-options {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  padding-left: 38px;
+}
+
+.timer-toggle {
+  color: var(--lb-text-soft);
+  font-size: 0.82rem;
   font-weight: 750;
-  min-height: 48px;
+}
+
+.timer-minutes {
+  align-items: center;
+  color: var(--lb-text-soft);
+  display: inline-grid;
+  font-size: 0.84rem;
+  font-weight: 750;
+  gap: 7px;
+  grid-template-columns: auto 72px auto;
+}
+
+.timer-minute-input {
+  min-height: 36px;
+  padding-left: 8px;
+  padding-right: 8px;
+  text-align: center;
+}
+
+.details-section {
+  background: var(--lb-section-soft);
+}
+
+.section-disclosure {
+  align-items: center;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  margin: 0;
+  padding: 0;
+  text-align: left;
+  width: 100%;
+}
+
+.section-disclosure:focus-visible {
+  border-radius: 8px;
+  box-shadow: 0 0 0 3px var(--lb-focus);
+  outline: 0;
+}
+
+.disclosure-meta {
+  align-items: center;
+  color: var(--lb-muted);
+  display: inline-flex;
+  gap: 4px;
+}
+
+.details-grid {
+  grid-template-columns: 1fr;
+}
+
+.unit-input {
+  align-items: center;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.unit-input span {
+  color: var(--lb-muted);
+  font-size: 0.88rem;
+  font-weight: 650;
 }
 
 .category-dropdown {
@@ -667,6 +1045,7 @@ function clampTimerPart(value: string, maxValue: number): string {
 }
 
 .category-dropdown-menu {
+  border: 1px solid var(--lb-border);
   border-radius: 8px;
   display: grid;
   gap: 2px;
@@ -691,196 +1070,7 @@ function clampTimerPart(value: string, maxValue: number): string {
 }
 
 .category-dropdown-item:hover {
-  background: #f5ead0;
-}
-
-.details-grid {
-  display: grid;
-  gap: 12px;
-  grid-template-columns: 1fr;
-}
-
-.section-title-row,
-.instruction-section-header {
-  align-items: center;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  justify-content: space-between;
-}
-
-.editable-list,
-.instruction-stack,
-.step-list {
-  display: grid;
-  gap: 10px;
-}
-
-.ingredient-row {
-  display: grid;
-  gap: 8px;
-  grid-template-columns: 1fr;
-}
-
-.instruction-section {
-  background: rgba(255, 255, 255, 0.74);
-  border-radius: 8px;
-  display: grid;
-  gap: 12px;
-  padding: 12px;
-}
-
-.instruction-section-title {
-  color: #2a432a;
-  font-size: 1rem;
-  font-weight: 750;
-  margin: 0;
-}
-
-.step-row {
-  align-items: end;
-  display: grid;
-  gap: 8px;
-  grid-template-columns: auto minmax(0, 1fr);
-}
-
-.step-number {
-  align-items: center;
-  background: #f5ead0;
-  border: 1px solid #d9c59c;
-  border-radius: 999px;
-  color: #486034;
-  display: inline-flex;
-  font-size: 0.8rem;
-  font-weight: 800;
-  height: 30px;
-  justify-content: center;
-  margin-bottom: 4px;
-  width: 30px;
-}
-
-.timer-field {
-  grid-column: 2;
-  display: grid;
-  gap: 6px;
-}
-
-.timer-toggle {
-  align-items: center;
-  display: inline-flex;
-  font-size: 0.8rem;
-  font-weight: 750;
-  gap: 7px;
-  margin: 0;
-}
-
-.timer-parts {
-  align-items: center;
-  background-color: rgba(255, 255, 255, 0.84);
-  border: 1px solid rgba(72, 96, 52, 0.2);
-  border-radius: 8px;
-  box-shadow:
-    0 7px 16px rgba(42, 67, 42, 0.08),
-    inset 0 1px rgba(255, 255, 255, 0.86),
-    inset 0 -1px rgba(72, 96, 52, 0.05);
-  display: grid;
-  gap: 2px;
-  grid-template-columns: minmax(38px, 1fr) auto minmax(38px, 1fr) auto minmax(38px, 1fr) auto minmax(38px, 1fr);
-  max-width: 292px;
-  min-height: 38px;
-  padding: 0 8px;
-  transition:
-    border-color 0.18s ease,
-    box-shadow 0.18s ease,
-    background-color 0.18s ease;
-}
-
-.timer-parts:focus-within {
-  background-color: rgba(255, 255, 255, 0.94);
-  border-color: rgba(72, 96, 52, 0.55);
-  box-shadow:
-    0 0 0 3px rgba(95, 116, 68, 0.18),
-    0 9px 20px rgba(42, 67, 42, 0.12),
-    inset 0 1px rgba(255, 255, 255, 0.92);
-}
-
-.timer-part-input {
-  appearance: textfield;
-  background: transparent;
-  border: 0;
-  box-shadow: none;
-  font-variant-numeric: tabular-nums;
-  font-weight: 750;
-  height: 36px;
-  min-width: 0;
-  padding: 0 2px;
-  text-align: center;
-}
-
-.timer-part-input:hover,
-.timer-part-input:focus {
-  background: transparent;
-  border: 0;
-  box-shadow: none;
-}
-
-.timer-part-input::-webkit-inner-spin-button,
-.timer-part-input::-webkit-outer-spin-button {
-  appearance: none;
-  margin: 0;
-}
-
-.timer-separator {
-  color: #486034;
-  font-weight: 850;
-  line-height: 1;
-}
-
-.step-remove-button {
-  grid-column: 2;
-  justify-self: start;
-}
-
-.row-remove-button {
-  align-items: center;
-  display: inline-flex;
-  gap: 6px;
-  justify-content: center;
-}
-
-.image-grid {
-  display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-}
-
-.image-preview {
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.image-preview img {
-  aspect-ratio: 4 / 3;
-  display: block;
-  object-fit: cover;
-  width: 100%;
-}
-
-.image-preview figcaption {
-  align-items: center;
-  background: #fff9ec;
-  display: flex;
-  gap: 8px;
-  justify-content: space-between;
-  min-height: 42px;
-  padding: 8px;
-}
-
-.image-preview figcaption span {
-  font-size: 0.875rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  background: var(--lb-section);
 }
 
 .icon-only {
@@ -897,19 +1087,54 @@ function clampTimerPart(value: string, maxValue: number): string {
   font-size: 18px;
 }
 
-@media (min-width: 576px) {
+.recipe-editor-footer {
+  align-items: center;
+  background: var(--lb-surface);
+  border-top: 1px solid var(--lb-border);
+  box-shadow: 0 -4px 14px var(--lb-shadow-soft);
+  gap: 12px;
+  justify-content: space-between;
+  padding: 12px 18px;
+}
+
+.save-hint {
+  color: var(--lb-warm);
+  font-size: 0.86rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.footer-actions {
+  justify-content: flex-end;
+  margin-left: auto;
+}
+
+.save-button:disabled {
+  background: color-mix(in srgb, var(--lb-muted) 18%, transparent) !important;
+  border-color: var(--lb-border-strong) !important;
+  box-shadow: none !important;
+  color: color-mix(in srgb, var(--lb-text) 58%, transparent) !important;
+  cursor: not-allowed;
+  opacity: 1;
+  text-shadow: none;
+  transform: none;
+}
+
+@media (min-width: 640px) {
   .details-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  .ingredient-row {
-    grid-template-columns: minmax(0, 1fr) auto;
+  .notes-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @media (min-width: 768px) {
-  .modal-body {
-    gap: 20px;
+  .recipe-editor-body {
+    gap: 18px;
+    padding: 20px;
+    padding-bottom: 118px;
   }
 
   .editor-section {
@@ -917,12 +1142,76 @@ function clampTimerPart(value: string, maxValue: number): string {
   }
 
   .step-row {
-    grid-template-columns: auto minmax(0, 1fr) minmax(248px, 300px) auto;
+    gap: 6px;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .recipe-modal-dialog {
+    height: 100svh;
+    margin: 0;
+    max-width: none;
+    width: 100%;
   }
 
-  .timer-field,
-  .step-remove-button {
-    grid-column: auto;
+  .recipe-editor {
+    border: 0;
+    border-radius: 0;
+    min-height: 100svh;
+  }
+
+  .recipe-editor-header {
+    padding: 14px 14px 12px;
+  }
+
+  .header-copy h2 {
+    font-size: 1.14rem;
+  }
+
+  .header-copy p {
+    font-size: 0.85rem;
+  }
+
+  .recipe-editor-body {
+    gap: 14px;
+    padding: 14px;
+    padding-bottom: calc(132px + env(safe-area-inset-bottom));
+  }
+
+  .editor-section {
+    padding: 14px;
+  }
+
+  .photo-selected-state {
+    grid-template-columns: 72px minmax(0, 1fr);
+  }
+
+  .photo-selected-state img {
+    width: 72px;
+  }
+
+  .step-options {
+    padding-left: 0;
+  }
+
+  .timer-minutes {
+    grid-template-columns: auto minmax(64px, 78px) auto;
+  }
+
+  .recipe-editor-footer {
+    align-items: stretch;
+    padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+  }
+
+  .save-hint {
+    flex-basis: 100%;
+  }
+
+  .footer-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr);
+    margin-left: 0;
+    width: 100%;
   }
 }
 </style>
