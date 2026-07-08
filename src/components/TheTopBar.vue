@@ -34,13 +34,10 @@ const brandIconUrl = `${import.meta.env.BASE_URL}icons/localbite-page-logo-maste
 .topbar {
   --topbar-height: 72px;
   align-items: center;
-  background: linear-gradient(135deg, #fff8e6 0%, #ead3a5 45%, #d7b16f 100%);
-  border-bottom-color: rgba(118, 83, 43, 0.34) !important;
-  box-shadow:
-    inset 0 1px rgba(255, 255, 255, 0.5),
-    inset 0 -1px rgba(118, 83, 43, 0.18),
-    0 5px 18px rgba(72, 54, 31, 0.12);
-  color: #2a432a;
+  background: linear-gradient(135deg, var(--lb-topbar-start) 0%, var(--lb-surface) 42%, var(--lb-topbar-end) 100%);
+  border-bottom-color: var(--lb-border) !important;
+  box-shadow: 0 1px 4px var(--lb-shadow-soft);
+  color: var(--lb-text);
   display: flex;
   height: var(--topbar-height);
   position: sticky;
@@ -49,7 +46,7 @@ const brandIconUrl = `${import.meta.env.BASE_URL}icons/localbite-page-logo-maste
 }
 
 .topbar::before {
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0.28), transparent 42%, rgba(72, 96, 52, 0.08));
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.24), transparent 42%, var(--lb-section-soft));
   content: "";
   inset: 0;
   pointer-events: none;
@@ -64,12 +61,10 @@ const brandIconUrl = `${import.meta.env.BASE_URL}icons/localbite-page-logo-maste
 
 .brand-logo-frame {
   align-items: center;
-  background: #fff8e6;
-  border: 2px solid rgba(42, 67, 42, 0.7);
+  background: var(--lb-surface);
+  border: 1px solid var(--lb-border-strong);
   border-radius: 10px;
-  box-shadow:
-    0 2px 7px rgba(63, 35, 15, 0.22),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.5);
+  box-shadow: 0 1px 4px var(--lb-shadow-soft);
   display: inline-flex;
   flex: 0 0 auto;
   height: 52px;
@@ -90,26 +85,24 @@ const brandIconUrl = `${import.meta.env.BASE_URL}icons/localbite-page-logo-maste
 
 .brand-title {
   display: inline-flex;
-  filter: drop-shadow(0 3px 5px rgba(42, 67, 42, 0.2));
   line-height: 0.9;
   min-width: 0;
 }
 
 .brand-title span {
-  background: linear-gradient(180deg, #1e321e 0%, #456034 54%, #233c24 100%);
+  background: linear-gradient(180deg, var(--lb-text) 0%, var(--lb-accent) 70%, var(--lb-text-soft) 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
   font-size: 1.65rem;
   font-weight: 900;
   letter-spacing: 0;
-  text-shadow: 0 1px 1px rgba(255, 255, 255, 0.35);
   white-space: nowrap;
 }
 
 .icon-button {
   align-items: center;
-  color: #2a432a;
+  color: var(--lb-text);
   display: inline-flex;
   height: 40px;
   justify-content: center;

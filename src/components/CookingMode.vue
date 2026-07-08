@@ -192,16 +192,16 @@ function padTimer(value: number): string {
 
 <style scoped>
 .cooking-backdrop {
-  background: rgba(42, 43, 32, 0.52);
+  background: color-mix(in srgb, var(--lb-text) 48%, transparent);
   inset: 0;
   position: fixed;
   z-index: 1190;
 }
 
 .cooking-mode {
-  background: #faf2dd;
+  background: var(--lb-bg);
   border-radius: 8px;
-  box-shadow: 0 24px 70px rgba(42, 43, 32, 0.32);
+  box-shadow: 0 20px 56px var(--lb-shadow);
   display: flex;
   flex-direction: column;
   inset: 12px;
@@ -213,7 +213,7 @@ function padTimer(value: number): string {
 
 .cooking-header {
   align-items: flex-start;
-  background: linear-gradient(135deg, #fff8e6 0%, #ead3a5 56%, #d7b16f 100%);
+  background: linear-gradient(135deg, var(--lb-topbar-start) 0%, var(--lb-surface) 48%, var(--lb-topbar-end) 100%);
   display: flex;
   flex: 0 0 auto;
   gap: 12px;
@@ -222,7 +222,7 @@ function padTimer(value: number): string {
 }
 
 .cooking-header h2 {
-  color: #2a432a;
+  color: var(--lb-text);
   font-size: 1.35rem;
   font-weight: 850;
 }
@@ -240,7 +240,7 @@ function padTimer(value: number): string {
 }
 
 .cooking-section h3 {
-  color: #2a432a;
+  color: var(--lb-text);
   font-size: 1.1rem;
   font-weight: 850;
   margin: 0 0 10px;
@@ -252,7 +252,7 @@ function padTimer(value: number): string {
 }
 
 .cooking-step {
-  background: rgba(255, 255, 255, 0.82);
+  background: var(--lb-surface);
   border-radius: 8px;
   display: grid;
   gap: 12px;
@@ -260,8 +260,8 @@ function padTimer(value: number): string {
 }
 
 .cooking-step.is-complete {
-  background: rgba(245, 234, 208, 0.7);
-  color: #756f61;
+  background: var(--lb-section);
+  color: var(--lb-muted);
 }
 
 .cooking-step.is-complete .step-check span {
@@ -290,7 +290,7 @@ function padTimer(value: number): string {
 }
 
 .timer-readout {
-  color: #8b4a23;
+  color: var(--lb-warm);
   font-variant-numeric: tabular-nums;
   font-weight: 850;
   min-width: 58px;
@@ -315,7 +315,7 @@ function padTimer(value: number): string {
 }
 
 .empty-cooking-state .material-icons {
-  color: #486034;
+  color: var(--lb-text-soft);
   font-size: 44px;
 }
 

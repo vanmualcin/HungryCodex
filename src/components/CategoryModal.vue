@@ -102,11 +102,11 @@ function submitCategory(): void {
 }
 
 .btn-success {
-  --bs-btn-bg: #486034;
-  --bs-btn-border-color: #486034;
-  --bs-btn-hover-bg: #3d522c;
-  --bs-btn-hover-border-color: #3d522c;
-  --bs-btn-active-bg: #324425;
-  --bs-btn-active-border-color: #324425;
+  --bs-btn-bg: var(--lb-accent);
+  --bs-btn-border-color: var(--lb-accent);
+  --bs-btn-hover-bg: var(--lb-accent-dark);
+  --bs-btn-hover-border-color: var(--lb-accent-dark);
+  --bs-btn-active-bg: var(--lb-accent-dark);
+  --bs-btn-active-border-color: var(--lb-accent-dark);
 }
 </style>

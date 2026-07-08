@@ -127,8 +127,8 @@ function detailsPreview(recipe: RecipeCardView): string {
 
 .recipe-card:hover,
 .recipe-card:focus-within {
-  border-color: rgba(72, 96, 52, 0.34) !important;
-  box-shadow: 0 12px 26px rgba(42, 67, 42, 0.12);
+  border-color: var(--lb-border-strong) !important;
+  box-shadow: 0 6px 18px var(--lb-shadow-soft);
   transform: translateY(-1px);
 }
 
@@ -139,12 +139,12 @@ function detailsPreview(recipe: RecipeCardView): string {
 }
 
 .recipe-open-link:focus-visible {
-  outline: 3px solid rgba(72, 96, 52, 0.28);
+  outline: 3px solid var(--lb-focus);
   outline-offset: -3px;
 }
 
 .recipe-media {
-  background: #f5ead0;
+  background: var(--lb-section);
   min-height: 148px;
 }
 
@@ -156,7 +156,7 @@ function detailsPreview(recipe: RecipeCardView): string {
 
 .recipe-media-placeholder {
   align-items: center;
-  color: #486034;
+  color: var(--lb-text-soft);
   display: flex;
   height: 100%;
   justify-content: center;
@@ -190,12 +190,12 @@ function detailsPreview(recipe: RecipeCardView): string {
 }
 
 .ingredients-preview {
-  color: #486034;
+  color: var(--lb-text-soft);
   font-size: 0.95rem;
 }
 
 .details-preview {
-  color: #8b4a23;
+  color: var(--lb-warm);
   font-size: 0.9rem;
   font-weight: 650;
 }
@@ -207,7 +207,7 @@ function detailsPreview(recipe: RecipeCardView): string {
 }
 
 .recipe-meta {
-  border-top: 1px solid #e1d2b4;
+  border-top: 1px solid var(--lb-border);
   display: grid;
   gap: 10px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -215,25 +215,25 @@ function detailsPreview(recipe: RecipeCardView): string {
 }
 
 .recipe-meta dt {
-  color: #6c757d;
+  color: var(--lb-muted);
   font-size: 0.75rem;
   font-weight: 700;
   text-transform: uppercase;
 }
 
 .recipe-meta dd {
-  color: #8b4a23;
+  color: var(--lb-warm);
   font-size: 0.875rem;
   margin: 0;
 }
 
 .btn-success {
-  --bs-btn-bg: #486034;
-  --bs-btn-border-color: #486034;
-  --bs-btn-hover-bg: #3d522c;
-  --bs-btn-hover-border-color: #3d522c;
-  --bs-btn-active-bg: #324425;
-  --bs-btn-active-border-color: #324425;
+  --bs-btn-bg: var(--lb-accent);
+  --bs-btn-border-color: var(--lb-accent);
+  --bs-btn-hover-bg: var(--lb-accent-dark);
+  --bs-btn-hover-border-color: var(--lb-accent-dark);
+  --bs-btn-active-bg: var(--lb-accent-dark);
+  --bs-btn-active-border-color: var(--lb-accent-dark);
 }
 
 .btn .material-icons {
@@ -253,7 +253,7 @@ function detailsPreview(recipe: RecipeCardView): string {
 }
 
 .empty-icon {
-  color: #486034;
+  color: var(--lb-text-soft);
   font-size: 44px;
 }
 

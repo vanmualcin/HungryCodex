@@ -72,12 +72,10 @@ function runAction(action: 'add-category' | 'add-recipe'): void {
 .fab-menu {
   backdrop-filter: saturate(170%) blur(16px);
   -webkit-backdrop-filter: saturate(170%) blur(16px);
-  background: linear-gradient(180deg, rgba(255, 253, 247, 0.86), rgba(255, 249, 236, 0.68));
-  border: 1px solid rgba(72, 96, 52, 0.22);
+  background: color-mix(in srgb, var(--lb-surface) 92%, transparent);
+  border: 1px solid var(--lb-border);
   border-radius: 8px;
-  box-shadow:
-    0 16px 34px rgba(42, 67, 42, 0.18),
-    inset 0 1px rgba(255, 255, 255, 0.78);
+  box-shadow: 0 8px 22px var(--lb-shadow);
   display: grid;
   gap: 8px;
   min-width: 188px;

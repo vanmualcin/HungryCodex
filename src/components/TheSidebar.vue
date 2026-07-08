@@ -1,19 +1,36 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { CategoryOption } from '../types'
 
-defineProps<{
+interface ThemeOption {
+  id: string
+  name: string
+  swatches: string[]
+}
+
+const props = defineProps<{
   categories: CategoryOption[]
   mobileOpen: boolean
   selectedCategoryIds: string[]
+  selectedTheme: string
+  themeOptions: ThemeOption[]
 }>()
 
 const emit = defineEmits<{
   (event: 'close-menu'): void
+  (event: 'select-theme', themeId: string): void
   (event: 'toggle-category', categoryId: string): void
 }>()
 
+const selectedThemeOption = computed(() => props.themeOptions.find((theme) => theme.id === props.selectedTheme) ?? props.themeOptions[0])
+
 function isSelected(categoryId: string, selectedCategoryIds: string[]): boolean {
   return selectedCategoryIds.includes(categoryId)
+}
+
+function handleThemeChange(event: Event): void {
+  const select = event.target as HTMLSelectElement
+  emit('select-theme', select.value)
 }
 </script>
 
@@ -45,6 +62,17 @@ function isSelected(categoryId: string, selectedCategoryIds: string[]): boolean 
       <p v-else class="small text-secondary p-4 mb-0">Add a category when you need one.</p>
     </div>
 
+    <div class="theme-settings border-top">
+      <label class="theme-label" for="desktop-theme-select">Theme</label>
+      <div class="theme-select-row">
+        <select id="desktop-theme-select" class="form-select" :value="selectedTheme" @change="handleThemeChange">
+          <option v-for="theme in themeOptions" :key="theme.id" :value="theme.id">{{ theme.name }}</option>
+        </select>
+        <div class="theme-swatches" aria-hidden="true">
+          <span v-for="swatch in selectedThemeOption.swatches" :key="swatch" :style="{ backgroundColor: swatch }"></span>
+        </div>
+      </div>
+    </div>
   </aside>
 
   <div v-if="mobileOpen" class="mobile-menu d-lg-none" role="dialog" aria-modal="true" aria-label="Categories">
@@ -59,25 +87,39 @@ function isSelected(categoryId: string, selectedCategoryIds: string[]): boolean 
     </div>
 
     <div class="mobile-menu-body">
-      <div v-if="categories.length > 0" class="category-list p-3" aria-label="Recipe categories">
-        <label
-          v-for="category in categories"
-          :key="category.id"
-          class="category-row"
-          :class="{ 'is-selected': isSelected(category.id, selectedCategoryIds) }"
-        >
-          <input
-            class="form-check-input"
-            type="checkbox"
-            :checked="isSelected(category.id, selectedCategoryIds)"
-            @change="emit('toggle-category', category.id)"
-          />
-          <span class="category-name">{{ category.name }}</span>
-          <span class="badge text-bg-light border">{{ category.count }}</span>
-        </label>
+      <div class="mobile-category-scroll">
+        <div v-if="categories.length > 0" class="category-list p-3" aria-label="Recipe categories">
+          <label
+            v-for="category in categories"
+            :key="category.id"
+            class="category-row"
+            :class="{ 'is-selected': isSelected(category.id, selectedCategoryIds) }"
+          >
+            <input
+              class="form-check-input"
+              type="checkbox"
+              :checked="isSelected(category.id, selectedCategoryIds)"
+              @change="emit('toggle-category', category.id)"
+            />
+            <span class="category-name">{{ category.name }}</span>
+            <span class="badge text-bg-light border">{{ category.count }}</span>
+          </label>
+        </div>
+
+        <p v-else class="small text-secondary p-4 mb-0">Add a category when you need one.</p>
       </div>
 
-      <p v-else class="small text-secondary p-4 mb-0">Add a category when you need one.</p>
+      <div class="theme-settings mobile-theme-settings border-top">
+        <label class="theme-label" for="mobile-theme-select">Theme</label>
+        <div class="theme-select-row">
+          <select id="mobile-theme-select" class="form-select" :value="selectedTheme" @change="handleThemeChange">
+            <option v-for="theme in themeOptions" :key="theme.id" :value="theme.id">{{ theme.name }}</option>
+          </select>
+          <div class="theme-swatches" aria-hidden="true">
+            <span v-for="swatch in selectedThemeOption.swatches" :key="swatch" :style="{ backgroundColor: swatch }"></span>
+          </div>
+        </div>
+      </div>
     </div>
 
   </div>
@@ -117,24 +159,24 @@ function isSelected(categoryId: string, selectedCategoryIds: string[]): boolean 
 }
 
 .category-sidebar {
-  background: #fff9ec;
+  background: var(--lb-surface);
 }
 
 .category-row:hover,
 .category-row.is-selected {
-  background: #f5ead0;
-  border-color: #d9c59c;
+  background: var(--lb-section);
+  border-color: var(--lb-border-strong);
 }
 
 .category-name {
-  color: #2a432a;
+  color: var(--lb-text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .mobile-menu {
-  background: #fff9ec;
+  background: var(--lb-surface);
   display: flex;
   flex-direction: column;
   inset: 0;
@@ -144,7 +186,7 @@ function isSelected(categoryId: string, selectedCategoryIds: string[]): boolean 
 
 .mobile-menu-header {
   align-items: center;
-  background: #fff9ec;
+  background: var(--lb-surface);
   display: flex;
   flex: 0 0 auto;
   justify-content: space-between;
@@ -152,14 +194,65 @@ function isSelected(categoryId: string, selectedCategoryIds: string[]): boolean 
 }
 
 .mobile-menu-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.mobile-category-scroll {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
 }
 
+.theme-settings {
+  display: grid;
+  flex: 0 0 auto;
+  gap: 8px;
+  padding: 14px 16px 16px;
+}
+
+.theme-label {
+  color: var(--lb-muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.theme-select-row {
+  align-items: center;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.theme-swatches {
+  background: var(--lb-control);
+  border: 1px solid var(--lb-border-strong);
+  border-radius: 999px;
+  display: inline-grid;
+  gap: 2px;
+  grid-template-columns: repeat(4, 1fr);
+  height: 30px;
+  padding: 3px;
+  width: 62px;
+}
+
+.theme-swatches span {
+  border-radius: 999px;
+}
+
+.mobile-theme-settings {
+  padding-bottom: calc(16px + env(safe-area-inset-bottom));
+}
+
 .icon-button {
   align-items: center;
-  color: #2a432a;
+  color: var(--lb-text);
   display: inline-flex;
   height: 40px;
   justify-content: center;
