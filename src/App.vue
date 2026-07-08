@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import CategoryModal from './components/CategoryModal.vue'
 import CookingMode from './components/CookingMode.vue'
 import FloatingActionMenu from './components/FloatingActionMenu.vue'
@@ -15,15 +15,24 @@ import { DEFAULT_CATEGORY_ID, type Category, type CategoryOption, type Recipe, t
 
 type ThemeId = 'herb' | 'coastal' | 'tomato' | 'pantry' | 'harvest-night' | 'night-market' | 'fig-dark'
 
-const themeOptions: { id: ThemeId; name: string; swatches: string[] }[] = [
-  { id: 'herb', name: 'Herb Garden', swatches: ['#f6f3ea', '#fffdf8', '#53735b', '#a9613f'] },
-  { id: 'coastal', name: 'Coastal Kitchen', swatches: ['#f3f7f6', '#ffffff', '#3f6f72', '#a96b3f'] },
-  { id: 'tomato', name: 'Tomato Grove', swatches: ['#f8f5ef', '#fffdf9', '#58724e', '#b95f46'] },
-  { id: 'pantry', name: 'Clean Pantry', swatches: ['#f5f4f0', '#ffffff', '#596f63', '#9a6b54'] },
-  { id: 'harvest-night', name: 'Harvest Night', swatches: ['#111816', '#18221f', '#8bb99b', '#e1a16d'] },
-  { id: 'night-market', name: 'Night Market', swatches: ['#101416', '#171d20', '#7bb9bd', '#df8c68'] },
-  { id: 'fig-dark', name: 'Fig Dark', swatches: ['#18141b', '#231d27', '#a9b985', '#d48778'] },
+interface ThemeOption {
+  id: ThemeId
+  name: string
+  statusBarColor: string
+  swatches: string[]
+}
+
+const themeOptions: ThemeOption[] = [
+  { id: 'herb', name: 'Herb Garden', statusBarColor: '#fdfbf4', swatches: ['#f6f3ea', '#fffdf8', '#53735b', '#a9613f'] },
+  { id: 'coastal', name: 'Coastal Kitchen', statusBarColor: '#fbfefd', swatches: ['#f3f7f6', '#ffffff', '#3f6f72', '#a96b3f'] },
+  { id: 'tomato', name: 'Tomato Grove', statusBarColor: '#fffdf8', swatches: ['#f8f5ef', '#fffdf9', '#58724e', '#b95f46'] },
+  { id: 'pantry', name: 'Clean Pantry', statusBarColor: '#ffffff', swatches: ['#f5f4f0', '#ffffff', '#596f63', '#9a6b54'] },
+  { id: 'harvest-night', name: 'Harvest Night', statusBarColor: '#18221f', swatches: ['#111816', '#18221f', '#8bb99b', '#e1a16d'] },
+  { id: 'night-market', name: 'Night Market', statusBarColor: '#171d20', swatches: ['#101416', '#171d20', '#7bb9bd', '#df8c68'] },
+  { id: 'fig-dark', name: 'Fig Dark', statusBarColor: '#231d27', swatches: ['#18141b', '#231d27', '#a9b985', '#d48778'] },
 ]
+
+const allowedThemeIds = new Set(themeOptions.map((theme) => theme.id))
 
 const recipes = ref<Recipe[]>([])
 const userCategories = ref<Category[]>([])
@@ -139,6 +148,8 @@ onMounted(async () => {
   }
 })
 
+watch(selectedTheme, applyThemeDocumentStyles, { immediate: true })
+
 function compareRecipes(firstRecipe: Recipe, secondRecipe: Recipe): number {
   if (sortKey.value === 'created') {
     return firstRecipe.createdAt.localeCompare(secondRecipe.createdAt)
@@ -201,17 +212,19 @@ function closeCookingMode(): void {
 }
 
 function readInitialTheme(): ThemeId {
-  const allowedThemes = new Set(themeOptions.map((theme) => theme.id))
-
   try {
+    if (typeof window === 'undefined') {
+      return 'herb'
+    }
+
     const urlTheme = new URLSearchParams(window.location.search).get('theme')
     const storedTheme = window.localStorage.getItem('localbite-theme')
 
-    if (urlTheme && allowedThemes.has(urlTheme as ThemeId)) {
+    if (urlTheme && allowedThemeIds.has(urlTheme as ThemeId)) {
       return urlTheme as ThemeId
     }
 
-    if (storedTheme && allowedThemes.has(storedTheme as ThemeId)) {
+    if (storedTheme && allowedThemeIds.has(storedTheme as ThemeId)) {
       return storedTheme as ThemeId
     }
   } catch {
@@ -222,9 +235,7 @@ function readInitialTheme(): ThemeId {
 }
 
 function selectTheme(themeId: string): void {
-  const allowedThemes = new Set(themeOptions.map((theme) => theme.id))
-
-  if (!allowedThemes.has(themeId as ThemeId)) {
+  if (!allowedThemeIds.has(themeId as ThemeId)) {
     return
   }
 
@@ -238,6 +249,25 @@ function selectTheme(themeId: string): void {
   } catch {
     // Theme selection still works for the current session.
   }
+}
+
+function applyThemeDocumentStyles(themeId: ThemeId): void {
+  if (typeof document === 'undefined') {
+    return
+  }
+
+  const themeColor = themeOptions.find((theme) => theme.id === themeId)?.statusBarColor ?? themeOptions[0].statusBarColor
+  document.documentElement.dataset.theme = themeId
+
+  let themeColorMeta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
+
+  if (!themeColorMeta) {
+    themeColorMeta = document.createElement('meta')
+    themeColorMeta.name = 'theme-color'
+    document.head.append(themeColorMeta)
+  }
+
+  themeColorMeta.content = themeColor
 }
 
 function openCategoryModal(): void {
@@ -416,14 +446,16 @@ async function handleSaveRecipe(payload: RecipeFormPayload): Promise<void> {
 
 <style scoped>
 .app-shell {
-  background: var(--lb-bg);
+  background: var(--lb-topbar-safe);
   color: var(--lb-text);
   min-height: 100svh;
 }
 
 .app-body {
   align-items: flex-start;
+  background: var(--lb-bg);
   display: flex;
+  min-height: calc(100svh - var(--lb-topbar-total-height));
 }
 
 .content-area {
