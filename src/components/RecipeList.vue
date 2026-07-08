@@ -46,10 +46,10 @@ function detailsPreview(recipe: RecipeCardView): string {
     <article
       v-for="recipe in recipes"
       :key="recipe.id"
-      class="recipe-card bg-white border"
+      class="recipe-card border"
     >
       <a
-        class="recipe-open-link text-body text-decoration-none"
+        class="recipe-open-link text-decoration-none"
         :href="`#recipe-${recipe.id}`"
         :aria-label="`Open ${recipe.name}`"
         @click.prevent="emit('view-recipe', recipe)"
@@ -63,7 +63,7 @@ function detailsPreview(recipe: RecipeCardView): string {
 
         <div class="recipe-card-body">
           <div class="min-w-0">
-            <h2 class="h5 mb-1">{{ recipe.name }}</h2>
+            <h2 class="recipe-card-title h5 mb-1">{{ recipe.name }}</h2>
             <p class="recipe-description text-secondary mb-0">{{ recipe.description || detailsPreview(recipe) || 'Open to add details and cooking steps.' }}</p>
           </div>
 
@@ -116,7 +116,9 @@ function detailsPreview(recipe: RecipeCardView): string {
 }
 
 .recipe-card {
+  background: var(--lb-surface);
   border-radius: 8px;
+  color: var(--lb-text);
   overflow: hidden;
   position: relative;
   transition:
@@ -133,14 +135,25 @@ function detailsPreview(recipe: RecipeCardView): string {
 }
 
 .recipe-open-link {
+  color: var(--lb-text);
   display: grid;
   grid-template-columns: 132px minmax(0, 1fr);
   min-height: 100%;
 }
 
+.recipe-open-link:hover,
+.recipe-open-link:focus {
+  color: var(--lb-text);
+}
+
 .recipe-open-link:focus-visible {
   outline: 3px solid var(--lb-focus);
   outline-offset: -3px;
+}
+
+.recipe-card-title {
+  color: var(--lb-text);
+  font-weight: 750;
 }
 
 .recipe-media {

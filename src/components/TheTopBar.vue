@@ -32,23 +32,26 @@ const brandIconUrl = `${import.meta.env.BASE_URL}icons/localbite-page-logo-maste
 
 <style scoped>
 .topbar {
-  --topbar-height: 72px;
-  align-items: center;
-  background: linear-gradient(135deg, var(--lb-topbar-start) 0%, var(--lb-surface) 42%, var(--lb-topbar-end) 100%);
+  --topbar-height: var(--lb-topbar-content-height);
+  align-items: stretch;
+  background: var(--lb-topbar-safe);
   border-bottom-color: var(--lb-border) !important;
   box-shadow: 0 1px 4px var(--lb-shadow-soft);
   color: var(--lb-text);
   display: flex;
-  height: var(--topbar-height);
+  min-height: var(--lb-topbar-total-height);
+  padding-top: var(--lb-safe-area-top);
   position: sticky;
   top: 0;
   z-index: 1040;
 }
 
 .topbar::before {
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0.24), transparent 42%, var(--lb-section-soft));
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.18), transparent 42%, var(--lb-section-soft)),
+    linear-gradient(135deg, var(--lb-topbar-start) 0%, var(--lb-surface) 42%, var(--lb-topbar-end) 100%);
   content: "";
-  inset: 0;
+  inset: var(--lb-safe-area-top) 0 0;
   pointer-events: none;
   position: absolute;
 }

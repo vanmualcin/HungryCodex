@@ -128,9 +128,9 @@ function handleThemeChange(event: Event): void {
 <style scoped>
 .category-sidebar {
   flex: 0 0 280px;
-  height: calc(100svh - 72px);
+  height: calc(100svh - var(--lb-topbar-total-height));
   position: sticky;
-  top: 72px;
+  top: var(--lb-topbar-total-height);
   z-index: 1000;
   flex-direction: column;
 }
@@ -190,7 +190,7 @@ function handleThemeChange(event: Event): void {
   display: flex;
   flex: 0 0 auto;
   justify-content: space-between;
-  padding: 14px 16px;
+  padding: calc(14px + var(--lb-safe-area-top)) 16px 14px;
 }
 
 .mobile-menu-body {
@@ -247,7 +247,7 @@ function handleThemeChange(event: Event): void {
 }
 
 .mobile-theme-settings {
-  padding-bottom: calc(16px + env(safe-area-inset-bottom));
+  padding-bottom: calc(16px + var(--lb-safe-area-bottom));
 }
 
 .icon-button {
