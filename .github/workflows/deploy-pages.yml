@@ -38,17 +38,34 @@ jobs:
 
       - name: Configure Vite base path
         run: |
-          if [ "${{ github.event.repository.name }}" = "${{ github.repository_owner }}.github.io" ]; then
-            echo "VITE_BASE_PATH=/" >> "$GITHUB_ENV"
+          repository_name="${GITHUB_REPOSITORY#*/}"
+
+          if [ "$repository_name" = "${GITHUB_REPOSITORY_OWNER}.github.io" ]; then
+            vite_base_path="/"
           else
-            echo "VITE_BASE_PATH=/${{ github.event.repository.name }}/" >> "$GITHUB_ENV"
+            vite_base_path="/${repository_name}/"
           fi
+
+          echo "VITE_BASE_PATH=$vite_base_path" >> "$GITHUB_ENV"
+          echo "Using VITE_BASE_PATH=$vite_base_path"
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
       - name: Build
         run: pnpm build
+
+      - name: Verify Pages base path
+        run: |
+          if grep -Fq "/LocalBite/" dist/index.html; then
+            echo "::error::dist/index.html still references /LocalBite/."
+            exit 1
+          fi
+
+          if [ "$VITE_BASE_PATH" != "/" ] && ! grep -Fq "$VITE_BASE_PATH" dist/index.html; then
+            echo "::error::dist/index.html does not reference expected base path $VITE_BASE_PATH."
+            exit 1
+          fi
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v5
