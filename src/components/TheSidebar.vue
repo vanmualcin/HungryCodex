@@ -17,7 +17,6 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  (event: 'close-menu'): void
   (event: 'select-theme', themeId: string): void
   (event: 'toggle-category', categoryId: string): void
 }>()
@@ -75,15 +74,18 @@ function handleThemeChange(event: Event): void {
     </div>
   </aside>
 
-  <div v-if="mobileOpen" class="mobile-menu d-lg-none" role="dialog" aria-modal="true" aria-label="Categories">
+  <div
+    v-if="mobileOpen"
+    id="mobile-category-menu"
+    class="mobile-menu d-lg-none"
+    role="dialog"
+    aria-label="Categories"
+  >
     <div class="mobile-menu-header border-bottom">
       <div>
         <h2 class="h5 mb-0">Categories</h2>
         <p class="small text-secondary mb-0">Filter your recipes</p>
       </div>
-      <button class="btn btn-link icon-button" type="button" aria-label="Close categories" @click="emit('close-menu')">
-        <span class="material-icons" aria-hidden="true">close</span>
-      </button>
     </div>
 
     <div class="mobile-menu-body">
@@ -179,9 +181,9 @@ function handleThemeChange(event: Event): void {
   background: var(--hc-surface);
   display: flex;
   flex-direction: column;
-  inset: 0;
+  inset: calc(var(--hc-topbar-total-height) + 1px) 0 0;
   position: fixed;
-  z-index: 1100;
+  z-index: 1030;
 }
 
 .mobile-menu-header {
@@ -189,8 +191,7 @@ function handleThemeChange(event: Event): void {
   background: var(--hc-surface);
   display: flex;
   flex: 0 0 auto;
-  justify-content: space-between;
-  padding: calc(14px + var(--hc-safe-area-top)) 16px 14px;
+  padding: 14px 16px;
 }
 
 .mobile-menu-body {
@@ -250,18 +251,4 @@ function handleThemeChange(event: Event): void {
   padding-bottom: calc(16px + var(--hc-safe-area-bottom));
 }
 
-.icon-button {
-  align-items: center;
-  color: var(--hc-text);
-  display: inline-flex;
-  height: 40px;
-  justify-content: center;
-  padding: 0;
-  text-decoration: none;
-  width: 40px;
-}
-
-.btn .material-icons {
-  font-size: 20px;
-}
 </style>

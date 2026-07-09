@@ -1,6 +1,7 @@
 import { createApp } from 'vue'
 import 'bootstrap/dist/css/bootstrap.min.css'
 import 'material-icons/iconfont/filled.css'
+import '@fontsource-variable/fraunces/index.css'
 import './style.css'
 import App from './App.vue'
 import { registerServiceWorker } from './pwa'

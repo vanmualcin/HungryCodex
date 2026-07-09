@@ -58,11 +58,23 @@ function runAction(action: 'add-category' | 'add-recipe'): void {
 }
 
 .fab-trigger {
+  border: 2px solid var(--hc-border-strong) !important;
   border-radius: 999px !important;
+  box-shadow: 0 4px 12px rgba(16, 24, 20, 0.24);
   height: 62px;
   justify-content: center;
   padding: 0;
   width: 62px;
+}
+
+.fab-trigger:hover {
+  box-shadow: 0 6px 16px rgba(16, 24, 20, 0.28);
+}
+
+.fab-trigger:focus-visible {
+  box-shadow:
+    0 0 0 3px var(--hc-focus),
+    0 4px 12px rgba(16, 24, 20, 0.24);
 }
 
 .fab-trigger .material-icons {
