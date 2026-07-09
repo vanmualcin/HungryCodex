@@ -348,7 +348,7 @@ async function handleSaveRecipe(payload: RecipeFormPayload): Promise<void> {
 
 <template>
   <div class="app-shell" :data-theme="selectedTheme">
-    <TheTopBar @toggle-menu="mobileMenuOpen = true" />
+    <TheTopBar :menu-open="mobileMenuOpen" @toggle-menu="mobileMenuOpen = !mobileMenuOpen" />
 
     <div class="app-body">
       <TheSidebar
@@ -357,7 +357,6 @@ async function handleSaveRecipe(payload: RecipeFormPayload): Promise<void> {
         :selected-category-ids="selectedCategoryIds"
         :selected-theme="selectedTheme"
         :theme-options="themeOptions"
-        @close-menu="mobileMenuOpen = false"
         @select-theme="selectTheme"
         @toggle-category="toggleCategoryFilter"
       />
